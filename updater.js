@@ -110,9 +110,36 @@ async function warmUpCache(client) {
     return res.rows.length;
 }
 
+function extractRegionNames(result) {
+    const region = result?.region;
+    if (!region) return null;
+
+    const stateName = region.area1?.name || '';
+    const area2 = region.area2?.name || '';
+    const area3 = region.area3?.name || '';
+    const area4 = region.area4?.name || '';
+    const cityParts = [area2, area3, area4].filter((part) => part && part.trim() !== '');
+
+    return {
+        state: stateName,
+        city: cityParts.join(' '),
+    };
+}
+
+function pickBestRegionResult(results) {
+    if (!Array.isArray(results) || results.length === 0) return null;
+
+    return (
+        results.find((r) => r.name === 'legalcode') ||
+        results.find((r) => r.name === 'admcode') ||
+        results.find((r) => r.region) ||
+        results[0]
+    );
+}
+
 function fetchNaverAddress(lat, lon) {
     return new Promise((resolve) => {
-        const url = `https://maps.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${lon},${lat}&output=json&orders=admcode,roadaddr,addr`;
+        const url = `https://maps.apigw.ntruss.com/map-reversegeocode/v2/gc?coords=${lon},${lat}&output=json&orders=legalcode,admcode,roadaddr,addr`;
         const options = {
             headers: {
                 'x-ncp-apigw-api-key-id': config.naverId,
@@ -147,16 +174,15 @@ function fetchNaverAddress(lat, lon) {
                         return;
                     }
 
-                    const admResult = parsed.results.find((r) => r.name === 'admcode') || parsed.results[0];
-                    const region = admResult.region;
+                    const bestRegionResult = pickBestRegionResult(parsed.results);
+                    const extracted = extractRegionNames(bestRegionResult);
+                    if (!extracted) {
+                        finish(null);
+                        return;
+                    }
 
-                    const stateName = region.area1?.name || '';
-                    const area2 = region.area2?.name || '';
-                    const area3 = region.area3?.name || '';
-                    const area4 = region.area4?.name || '';
-
-                    const cityParts = [area2, area3, area4].filter((part) => part && part.trim() !== '');
-                    let cityName = cityParts.join(' ');
+                    const stateName = extracted.state;
+                    let cityName = extracted.city;
 
                     let buildingName = '';
                     const roadResult = parsed.results.find((r) => r.name === 'roadaddr');

@@ -157,6 +157,19 @@ docker compose up -d --build immich-naver-reverse-geocoding
 docker compose exec immich-naver-reverse-geocoding node updater.js --force
 ```
 
+### 캐시 삭제
+완전히 새로고침하고 싶다면 먼저 캐시를 삭제할 수 있습니다.
+
+캐시만 삭제 후 종료:
+```bash
+docker compose exec immich-naver-reverse-geocoding node updater.js --clear-cache-only
+```
+
+캐시 삭제 후 전체 재처리:
+```bash
+docker compose exec immich-naver-reverse-geocoding node updater.js --force --clear-cache
+```
+
 ### 로그 확인
 ```bash
 docker compose logs -f --tail=100 immich-naver-reverse-geocoding
@@ -166,9 +179,10 @@ docker compose logs -f --tail=100 immich-naver-reverse-geocoding
 
 ## 업데이트 시 참고
 
-- `.env`의 네이버 API 키는 그대로 사용됩니다.
-- PostgreSQL의 `custom_naver_geocode_cache` 캐시는 유지됩니다.
+- `.env`의 API 키 설정은 그대로 사용됩니다.
+- PostgreSQL의 `custom_naver_geocode_cache` 캐시는 기본적으로 유지됩니다.
 - `NAVER_API_TIMEOUT_MS`로 네이버 API 요청 최대 대기시간(기본 10000ms)을 조정할 수 있습니다.
+- `--force --clear-cache`를 사용하면 메모리/DB 캐시를 모두 비운 뒤 전체 사진을 다시 처리할 수 있습니다.
 - 코드 변경 후에는 `docker compose up -d --build ...`로 재빌드해야 반영됩니다.
 
 ---

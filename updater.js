@@ -25,6 +25,8 @@ const config = {
 };
 
 const isForceMode = process.argv.includes('--force');
+const shouldClearCache = process.argv.includes('--clear-cache');
+const clearCacheOnly = process.argv.includes('--clear-cache-only');
 let locationMap = {};
 
 const addressCache = new Map();
@@ -281,6 +283,11 @@ async function warmUpCache(client) {
     return res.rows.length;
 }
 
+async function clearAllCache(client) {
+    addressCache.clear();
+    await client.query('TRUNCATE TABLE "custom_naver_geocode_cache"');
+}
+
 async function upsertCache(client, cacheKey, address) {
     await client.query(
         `INSERT INTO "custom_naver_geocode_cache" ("cache_key", "state", "city", "updated_at")
@@ -423,6 +430,15 @@ async function main(forceUpdate = false) {
         await client.connect();
         await ensureCacheTable(client);
 
+        if (shouldClearCache || clearCacheOnly) {
+            console.log(`[${nowKst()}] 🧹 캐시 삭제 시작`);
+            await clearAllCache(client);
+            console.log(`[${nowKst()}] ✅ 메모리/DB 캐시 삭제 완료`);
+            if (clearCacheOnly) {
+                return;
+            }
+        }
+
         const warmedCount = await warmUpCache(client);
         console.log(`[${nowKst()}] 🔥 캐시 워밍업 완료: ${warmedCount}건 적재`);
 
@@ -440,12 +456,14 @@ async function main(forceUpdate = false) {
         `;
 
         const res = await client.query(query);
+        console.log(`[${nowKst()}] 📦 대상 사진 조회 완료: ${res.rows.length}건`);
 
         if (res.rows.length === 0) {
             console.log(`[${nowKst()}] 🔍 업데이트할 항목이 없습니다.`);
             return;
         }
 
+        console.log(`[${nowKst()}] 🧩 클러스터링 시작 (반경 ${config.clusterRadiusMeters}m)`);
         const clusters = clusterRows(res.rows, config.clusterRadiusMeters);
         const fastTrackClusters = [];
         const apiTrackClusters = [];
@@ -455,7 +473,14 @@ async function main(forceUpdate = false) {
             else apiTrackClusters.push(cluster);
         }
 
-        console.log(`[${nowKst()}] 🧭 대상 분류 완료: 클러스터 ${clusters.length}개, Fast Track ${fastTrackClusters.length}개, API Track ${apiTrackClusters.length}개`);
+        const fastTrackPhotos = fastTrackClusters.reduce((sum, cluster) => sum + cluster.assetCount, 0);
+        const apiTrackPhotos = apiTrackClusters.reduce((sum, cluster) => sum + cluster.assetCount, 0);
+
+        console.log(`[${nowKst()}] 🧭 대상 분류 완료`);
+        console.log(` ├─ 전체 사진: ${res.rows.length}건`);
+        console.log(` ├─ 전체 클러스터: ${clusters.length}개`);
+        console.log(` ├─ Fast Track: ${fastTrackClusters.length}개 클러스터 / ${fastTrackPhotos}장`);
+        console.log(` └─ API Track: ${apiTrackClusters.length}개 클러스터 / ${apiTrackPhotos}장`);
 
         let totalUpdated = 0;
         let fastTrackUpdated = 0;
@@ -464,9 +489,9 @@ async function main(forceUpdate = false) {
         let fastPrepared = 0;
         let apiProcessedClusters = 0;
         let apiProcessedPhotos = 0;
-        const totalPhotos = apiTrackClusters.reduce((sum, cluster) => sum + cluster.assetCount, 0);
+        const totalPhotos = apiTrackPhotos;
 
-        console.log(`[${nowKst()}] ⚡ Phase 1 시작: 캐시 적중 클러스터 고속 처리`);
+        console.log(`[${nowKst()}] ⚡ Phase 1 시작: 캐시 적중 클러스터 고속 처리 (${fastTrackClusters.length}개 / ${fastTrackPhotos}장)`);
 
         for (let i = 0; i < fastTrackClusters.length; i += FAST_TRACK_CHUNK_SIZE) {
             const chunk = fastTrackClusters.slice(i, i + FAST_TRACK_CHUNK_SIZE);
@@ -487,13 +512,14 @@ async function main(forceUpdate = false) {
                 totalUpdated += updated;
             }
 
-            if (fastPrepared % FAST_TRACK_LOG_INTERVAL === 0 || fastPrepared === fastTrackClusters.reduce((s, c) => s + c.assetCount, 0)) {
-                console.log(`[${nowKst()}] ⚡ Fast Track 진행: ${fastPrepared}장 처리 (DB 반영: ${fastTrackUpdated})`);
+            if (fastPrepared % FAST_TRACK_LOG_INTERVAL === 0 || fastPrepared === fastTrackPhotos) {
+                const ratio = fastTrackPhotos ? ((fastPrepared / fastTrackPhotos) * 100).toFixed(1) : '100.0';
+                console.log(`[${nowKst()}] ⚡ Fast Track 진행: ${fastPrepared}/${fastTrackPhotos}장 (${ratio}%) 처리, DB 반영 ${fastTrackUpdated}건`);
             }
         }
 
         console.log(`[${nowKst()}] ✅ Phase 1 완료: ${fastTrackUpdated}건 반영`);
-        console.log(`[${nowKst()}] 🌐 Phase 2 시작: 미확인 클러스터 API 처리`);
+        console.log(`[${nowKst()}] 🌐 Phase 2 시작: 미확인 클러스터 API 처리 (${apiTrackClusters.length}개 / ${apiTrackPhotos}장)`);
 
         for (const cluster of apiTrackClusters) {
             apiProcessedClusters++;
@@ -513,8 +539,10 @@ async function main(forceUpdate = false) {
                 totalUpdated += updated;
             }
 
-            if (apiProcessedClusters % API_TRACK_LOG_INTERVAL === 0 || apiProcessedClusters === apiTrackClusters.length) {
-                console.log(`[${nowKst()}] 🌐 API Track 진행: ${apiProcessedClusters}/${apiTrackClusters.length}개 클러스터, ${apiProcessedPhotos}/${totalPhotos}장 (실제 API 호출: ${apiCallCount}, DB 반영: ${apiTrackUpdated})`);
+            if (apiProcessedClusters <= 3 || apiProcessedClusters % API_TRACK_LOG_INTERVAL === 0 || apiProcessedClusters === apiTrackClusters.length) {
+                const clusterRatio = apiTrackClusters.length ? ((apiProcessedClusters / apiTrackClusters.length) * 100).toFixed(1) : '100.0';
+                const photoRatio = totalPhotos ? ((apiProcessedPhotos / totalPhotos) * 100).toFixed(1) : '100.0';
+                console.log(`[${nowKst()}] 🌐 API Track 진행: 클러스터 ${apiProcessedClusters}/${apiTrackClusters.length} (${clusterRatio}%), 사진 ${apiProcessedPhotos}/${totalPhotos} (${photoRatio}%), 실제 API 호출 ${apiCallCount}, DB 반영 ${apiTrackUpdated}`);
             }
 
             if (address?.source === 'api') {
@@ -542,8 +570,8 @@ async function main(forceUpdate = false) {
     }
 }
 
-if (isForceMode) {
-    main(true).then(() => process.exit(0));
+if (isForceMode || shouldClearCache || clearCacheOnly) {
+    main(isForceMode).then(() => process.exit(0));
 } else {
     main(false);
     setInterval(() => main(false), config.interval);

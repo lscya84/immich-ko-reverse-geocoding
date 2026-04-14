@@ -153,9 +153,12 @@ docker compose up -d --build immich-naver-reverse-geocoding
 ### 수동 강제 실행
 기존 사진까지 다시 처리하려면, 가까운 사진을 같은 장소 클러스터로 묶어서 재처리합니다. 기본 실행도 동일하게 클러스터 단위로 동작합니다.
 
+일반 전체 재처리:
 ```bash
 docker compose exec immich-naver-reverse-geocoding node updater.js --force
 ```
+- 기존 주소값이 있어도 다시 검사하고 반영합니다.
+- DB 캐시는 유지한 채 다시 처리합니다.
 
 ### 캐시 삭제
 완전히 새로고침하고 싶다면 먼저 캐시를 삭제할 수 있습니다.
@@ -164,11 +167,15 @@ docker compose exec immich-naver-reverse-geocoding node updater.js --force
 ```bash
 docker compose exec immich-naver-reverse-geocoding node updater.js --clear-cache-only
 ```
+- 메모리 캐시와 DB 캐시(`custom_naver_geocode_cache`)를 비운 뒤 종료합니다.
+- 주소 재반영은 하지 않습니다.
 
 캐시 삭제 후 전체 재처리:
 ```bash
 docker compose exec immich-naver-reverse-geocoding node updater.js --force --clear-cache
 ```
+- 메모리/DB 캐시를 모두 비운 뒤 전체 사진을 다시 처리합니다.
+- 사실상 **완전 새로고침** 용도로 사용하면 됩니다.
 
 ### 로그 확인
 ```bash

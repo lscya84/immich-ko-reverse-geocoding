@@ -150,6 +150,44 @@ docker compose up -d --build immich-naver-reverse-geocoding
 ### 백그라운드 스케줄러
 `INTERVAL_HOURS` 주기로 자동 실행됩니다.
 
+### 좌표 1건을 바로 위치정보로 확인
+레포 안에 좌표를 넣으면 현재 워커 로직을 재사용해 결과를 반환하는 `reverse_geocode.js`를 추가했습니다. 이 파일은 **건물명 정보를 최대한 가져오는 방향**으로 동작하며, 가능하면 Naver 결과의 건물명(`poiName`)도 함께 반환합니다. 또한 **VWORLD와 Naver API가 모두 설정되어 있으면 두 결과를 모두 함께 표현**합니다.
+
+사용 예시:
+```bash
+node reverse_geocode.js 37.3595704 127.105399
+```
+
+출력 예시:
+```json
+{
+  "ok": true,
+  "lat": 37.3595704,
+  "lon": 127.105399,
+  "address": {
+    "country": "대한민국",
+    "state": "경기도",
+    "city": "성남시 분당구 정자동 (네이버 1784)",
+    "legalDong": "정자동",
+    "poiName": "네이버 1784",
+    "provider": "vworld",
+    "source": "api"
+  }
+}
+```
+
+코드에서 직접 사용할 때:
+```js
+const { reverseGeocode } = require('./reverse_geocode');
+
+const result = await reverseGeocode(37.3595704, 127.105399);
+console.log(result.address.city);           // 예: 성남시 분당구 정자동 (네이버 1784)
+console.log(result.buildingName);           // 예: 네이버 1784
+console.log(result.address.poiName);        // 예: 네이버 1784
+console.log(result.providers.vworld);       // VWORLD 결과 원형/정규화 정보
+console.log(result.providers.naver);        // Naver 결과 원형/정규화 정보
+```
+
 ### 수동 강제 실행
 기존 사진까지 다시 처리하려면, 가까운 사진을 같은 장소 클러스터로 묶어서 재처리합니다. 기본 실행도 동일하게 클러스터 단위로 동작합니다.
 

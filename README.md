@@ -151,16 +151,17 @@ docker compose up -d --build immich-naver-reverse-geocoding
 `INTERVAL_HOURS` 주기로 자동 실행됩니다.
 
 ### 좌표 1건을 바로 위치정보로 확인
-`reverse_geocode.js`를 추가했습니다. 이 파일은 현재 워커 로직을 재사용해 좌표 1건에 대한 위치정보를 바로 JSON으로 반환합니다.
+`reverse_geocode.js`를 추가했습니다. 이 파일은 현재 워커 로직을 재사용해 좌표 1건에 대한 위치정보를 바로 반환합니다.
 
-특징:
-- **건물명 정보를 최대한 우선적으로** 가져옵니다.
-- 가능하면 Naver 결과의 건물명(`poiName`)을 함께 반환합니다.
-- **VWORLD와 Naver API가 모두 설정되어 있으면 두 결과를 모두 같이 반환**합니다.
+핵심 동작:
+- 기본 출력은 **요약 정리본**입니다.
+- 건물명이 있으면 최대한 함께 붙여 줍니다.
+- VWORLD와 Naver API가 모두 설정되어 있으면 **두 서비스 결과를 나란히 비교**할 수 있습니다.
+- 원본 상세 응답이 필요할 때만 `--raw` 옵션으로 확인할 수 있습니다.
 
 중요:
 - 이 파일을 컨테이너에서 사용하려면 **이미지 재빌드가 필요합니다.**
-- `git pull`만 하고 바로 `docker compose exec ... node reverse_geocode.js ...`를 실행하면, 예전 이미지에는 파일이 없어서 `Cannot find module '/app/reverse_geocode.js'`가 날 수 있습니다.
+- `git pull`만 하고 바로 실행하면 예전 이미지에는 파일이 없어 `Cannot find module '/app/reverse_geocode.js'`가 날 수 있습니다.
 
 #### docker compose 기준 사용 순서
 1. 저장소 업데이트
@@ -175,44 +176,65 @@ cd <immich 작업 폴더>
 docker compose up -d --build immich-naver-reverse-geocoding
 ```
 
-3. 컨테이너 안에서 좌표 조회 실행
+3. 좌표 조회 실행
 ```bash
 docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.354921 127.558729
 ```
 
-출력 예시:
+기본 출력 예시:
 ```json
 {
   "ok": true,
   "lat": 37.3595704,
   "lon": 127.105399,
-  "address": {
+  "summary": {
     "country": "대한민국",
     "state": "경기도",
     "city": "성남시 분당구 정자동 (네이버 1784)",
     "legalDong": "정자동",
-    "poiName": "네이버 1784",
-    "provider": "vworld",
-    "source": "api"
+    "buildingName": "네이버 1784",
+    "roadAddress": "불정로 6 네이버 1784",
+    "jibunAddress": "경기도 성남시 분당구 정자동 178-4",
+    "selectedProvider": "vworld"
   },
-  "buildingName": "네이버 1784",
   "providers": {
-    "vworld": {},
-    "naver": {}
+    "vworld": {
+      "state": "경기도",
+      "city": "성남시 분당구 정자동",
+      "legalDong": "정자동",
+      "buildingName": "",
+      "roadAddress": "",
+      "jibunAddress": "경기도 성남시 분당구 정자동 178-4"
+    },
+    "naver": {
+      "state": "경기도",
+      "city": "성남시 분당구 정자동",
+      "legalDong": "정자동",
+      "buildingName": "네이버 1784",
+      "roadAddress": "불정로 6 네이버 1784",
+      "jibunAddress": "경기도 성남시 분당구 정자동 178-4"
+    }
   }
 }
 ```
 
-#### 컨테이너 안에서 코드로 직접 사용할 때
+#### 원본 상세까지 보고 싶을 때
+```bash
+docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.354921 127.558729 --raw
+```
+
+#### 코드에서 직접 사용할 때
 ```js
 const { reverseGeocode } = require('./reverse_geocode');
 
 const result = await reverseGeocode(37.3595704, 127.105399);
-console.log(result.address.city);           // 예: 성남시 분당구 정자동 (네이버 1784)
-console.log(result.buildingName);           // 예: 네이버 1784
-console.log(result.address.poiName);        // 예: 네이버 1784
-console.log(result.providers.vworld);       // VWORLD 결과 원형/정규화 정보
-console.log(result.providers.naver);        // Naver 결과 원형/정규화 정보
+console.log(result.summary.city);
+console.log(result.summary.buildingName);
+console.log(result.providers.vworld);
+console.log(result.providers.naver);
+
+const rawResult = await reverseGeocode(37.3595704, 127.105399, { includeRaw: true });
+console.log(rawResult.raw);
 ```
 
 ### 수동 강제 실행

@@ -156,7 +156,6 @@ async function fetchVworldAddress(lat, lon) {
     poiName: '',
     roadAddress: roadResult?.text || '',
     jibunAddress: parcelResult?.text || '',
-    raw: parsed,
     provider: 'vworld',
     source: 'api',
   };
@@ -212,7 +211,6 @@ async function fetchNaverAddress(lat, lon) {
     poiName,
     roadAddress: roadResult?.land ? roadTextPartsToAddress(roadResult.land) : '',
     jibunAddress: jibunResult?.land ? jibunLandToAddress(jibunResult.land, state, area2, area3, area4) : '',
-    raw: parsed,
     provider: 'naver',
     source: 'api',
   };
@@ -226,6 +224,7 @@ async function reverseGeocode(lat, lon, options = {}) {
   const latitude = Number(lat);
   const longitude = Number(lon);
   const preferBuildingName = options.preferBuildingName !== false;
+  const includeRaw = options.includeRaw === true;
 
   const vworldAddress = await fetchVworldAddress(latitude, longitude);
   let address = vworldAddress;
@@ -269,17 +268,49 @@ async function reverseGeocode(lat, lon, options = {}) {
     address.poiName = naverAddress.poiName;
   }
 
-  return {
+  const result = {
     ok: true,
     lat: latitude,
     lon: longitude,
-    address,
-    buildingName: address.poiName || '',
+    summary: {
+      country: address.country || '',
+      state: address.state || '',
+      city: address.city || '',
+      legalDong: address.legalDong || '',
+      buildingName: address.poiName || '',
+      roadAddress: address.roadAddress || '',
+      jibunAddress: address.jibunAddress || '',
+      selectedProvider: address.provider || '',
+    },
     providers: {
-      vworld: vworldAddress,
-      naver: naverAddress,
+      vworld: vworldAddress ? {
+        state: vworldAddress.state || '',
+        city: vworldAddress.city || '',
+        legalDong: vworldAddress.legalDong || '',
+        buildingName: vworldAddress.poiName || '',
+        roadAddress: vworldAddress.roadAddress || '',
+        jibunAddress: vworldAddress.jibunAddress || '',
+      } : null,
+      naver: naverAddress ? {
+        state: naverAddress.state || '',
+        city: naverAddress.city || '',
+        legalDong: naverAddress.legalDong || '',
+        buildingName: naverAddress.poiName || '',
+        roadAddress: naverAddress.roadAddress || '',
+        jibunAddress: naverAddress.jibunAddress || '',
+      } : null,
     },
   };
+
+  if (includeRaw) {
+    result.raw = {
+      selected: address,
+      vworld: vworldAddress,
+      naver: naverAddress,
+    };
+  }
+
+  return result;
 }
 
 module.exports = {
@@ -290,13 +321,17 @@ module.exports = {
 };
 
 if (require.main === module) {
-  const [, , latArg, lonArg] = process.argv;
+  const args = process.argv.slice(2);
+  const rawMode = args.includes('--raw');
+  const filteredArgs = args.filter((arg) => arg !== '--raw');
+  const [latArg, lonArg] = filteredArgs;
+
   if (!latArg || !lonArg) {
-    console.error('Usage: node reverse_geocode.js <lat> <lon>');
+    console.error('Usage: node reverse_geocode.js <lat> <lon> [--raw]');
     process.exit(1);
   }
 
-  reverseGeocode(latArg, lonArg, { preferBuildingName: true })
+  reverseGeocode(latArg, lonArg, { preferBuildingName: true, includeRaw: rawMode })
     .then((result) => {
       console.log(JSON.stringify(result, null, 2));
       process.exit(result.ok ? 0 : 2);

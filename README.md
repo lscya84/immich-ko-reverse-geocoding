@@ -37,11 +37,10 @@ Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + 
 
 - VWORLD API 기반 기본 역지오코딩
 - 법정동(`level4L`) 기준 주소 반영
-- 우선순위: **VWORLD → Naver → Google(해외) → mapping.json**
+- 우선순위: **VWORLD → Naver → mapping.json**
 - `APPEND_BUILDING_NAME=true|false`로 건물명 보강 on/off 가능
 - VWORLD에서 건물명/주소가 충분하면 그대로 사용
 - Naver API는 VWORLD에서 비는 값이 있을 때만 보조적으로 사용
-- 해외 좌표는 Google Geocoding API로 보조 처리 가능
 - `mapping.json`은 최종 보조 매핑 fallback
 - 메모리 + PostgreSQL 캐시 사용
 - 사진들을 가까운 위치끼리 **클러스터 단위 처리**
@@ -91,20 +90,12 @@ Immich에서 실제로 사용하는 `.env` 파일에 아래를 추가합니다.
 VWORLD_API_KEY=복사한_VWORLD_KEY
 NAVER_CLIENT_ID=복사한_ID
 NAVER_CLIENT_SECRET=복사한_Secret
-GOOGLE_API_KEY=복사한_GOOGLE_KEY
-GEOCODE_FOREIGN_LANGUAGE_MODE=korean
-GOOGLE_API_TIMEOUT_MS=10000
 INTERVAL_HOURS=24
 STEP_DELAY_MS=100
 CLUSTER_RADIUS_METERS=15
 APPEND_BUILDING_NAME=true
 NAVER_API_TIMEOUT_MS=10000
 ```
-
-`GEOCODE_FOREIGN_LANGUAGE_MODE` 값:
-- `korean`: 해외 주소를 가능한 한 한국어로
-- `english`: 영어로
-- `local`: 현지어 우선
 
 ### 5) `mapping.json` 준비
 이 저장소는 기본적으로 `mapping.csv`를 포함해 배포하는 것을 전제로 합니다.
@@ -255,8 +246,7 @@ console.log(rawResult.raw);
 - `lib/geocode-utils.js`: 텍스트 정규화, building name 추출, mapping fallback 유틸
 - `lib/vworld.js`: VWORLD 역지오코딩 전용 모듈
 - `lib/naver.js`: Naver 역지오코딩 전용 모듈
-- `lib/google.js`: Google Geocoding 전용 모듈 (해외 보조)
-- `lib/geocode.js`: 최종 조합 로직 (`VWORLD → Naver → Google(해외) → mapping`)
+- `lib/geocode.js`: 최종 조합 로직 (`VWORLD → Naver → mapping`)
 - `reverse_geocode.js`: CLI 엔트리포인트
 - `updater.js`: 워커 본체, 향후 동일 공통 모듈을 사용하도록 확장 가능
 

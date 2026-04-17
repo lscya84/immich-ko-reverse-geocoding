@@ -151,11 +151,33 @@ docker compose up -d --build immich-naver-reverse-geocoding
 `INTERVAL_HOURS` 주기로 자동 실행됩니다.
 
 ### 좌표 1건을 바로 위치정보로 확인
-레포 안에 좌표를 넣으면 현재 워커 로직을 재사용해 결과를 반환하는 `reverse_geocode.js`를 추가했습니다. 이 파일은 **건물명 정보를 최대한 가져오는 방향**으로 동작하며, 가능하면 Naver 결과의 건물명(`poiName`)도 함께 반환합니다. 또한 **VWORLD와 Naver API가 모두 설정되어 있으면 두 결과를 모두 함께 표현**합니다.
+`reverse_geocode.js`를 추가했습니다. 이 파일은 현재 워커 로직을 재사용해 좌표 1건에 대한 위치정보를 바로 JSON으로 반환합니다.
 
-사용 예시:
+특징:
+- **건물명 정보를 최대한 우선적으로** 가져옵니다.
+- 가능하면 Naver 결과의 건물명(`poiName`)을 함께 반환합니다.
+- **VWORLD와 Naver API가 모두 설정되어 있으면 두 결과를 모두 같이 반환**합니다.
+
+중요:
+- 이 파일을 컨테이너에서 사용하려면 **이미지 재빌드가 필요합니다.**
+- `git pull`만 하고 바로 `docker compose exec ... node reverse_geocode.js ...`를 실행하면, 예전 이미지에는 파일이 없어서 `Cannot find module '/app/reverse_geocode.js'`가 날 수 있습니다.
+
+#### docker compose 기준 사용 순서
+1. 저장소 업데이트
 ```bash
-node reverse_geocode.js 37.3595704 127.105399
+cd <immich 작업 폴더>/immich-naver-reverse-geocoding
+git pull origin main
+```
+
+2. Immich 작업 폴더로 돌아가서 이미지 재빌드
+```bash
+cd <immich 작업 폴더>
+docker compose up -d --build immich-naver-reverse-geocoding
+```
+
+3. 컨테이너 안에서 좌표 조회 실행
+```bash
+docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.354921 127.558729
 ```
 
 출력 예시:
@@ -172,11 +194,16 @@ node reverse_geocode.js 37.3595704 127.105399
     "poiName": "네이버 1784",
     "provider": "vworld",
     "source": "api"
+  },
+  "buildingName": "네이버 1784",
+  "providers": {
+    "vworld": {},
+    "naver": {}
   }
 }
 ```
 
-코드에서 직접 사용할 때:
+#### 컨테이너 안에서 코드로 직접 사용할 때
 ```js
 const { reverseGeocode } = require('./reverse_geocode');
 

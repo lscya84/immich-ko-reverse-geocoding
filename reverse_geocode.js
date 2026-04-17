@@ -230,7 +230,7 @@ async function reverseGeocode(lat, lon, options = {}) {
   let address = vworldAddress;
   let naverAddress = null;
 
-  if (!address || preferBuildingName || (config.naverId && config.naverSecret)) {
+  if (!address || (preferBuildingName && !address?.poiName)) {
     naverAddress = await fetchNaverAddress(latitude, longitude);
   }
 
@@ -257,15 +257,26 @@ async function reverseGeocode(lat, lon, options = {}) {
     };
   }
 
-  if (preferBuildingName && naverAddress?.poiName) {
+  if (preferBuildingName && !address.poiName && naverAddress?.poiName) {
     address.poiName = naverAddress.poiName;
-    if (!address.city.includes(naverAddress.poiName)) {
-      address.city = `${address.city} (${naverAddress.poiName})`.trim();
-    }
   }
 
-  if (!address.poiName && naverAddress?.poiName) {
-    address.poiName = naverAddress.poiName;
+  if (!address.country && naverAddress?.country) address.country = naverAddress.country;
+  if (!address.state && naverAddress?.state) address.state = naverAddress.state;
+  if (!address.city && naverAddress?.city) address.city = naverAddress.city;
+  if (!address.legalDong && naverAddress?.legalDong) address.legalDong = naverAddress.legalDong;
+  if (!address.roadAddress && naverAddress?.roadAddress) address.roadAddress = naverAddress.roadAddress;
+  if (!address.jibunAddress && naverAddress?.jibunAddress) address.jibunAddress = naverAddress.jibunAddress;
+
+  if ((!address.state || !address.city) && locationMap) {
+    const mappedState = translateLocation(address.state);
+    const mappedCity = translateLocation(address.city);
+    if (!address.state && mappedState) address.state = mappedState;
+    if (!address.city && mappedCity) address.city = mappedCity;
+  }
+
+  if (address.poiName && address.city && !address.city.includes(address.poiName)) {
+    address.city = `${address.city} (${address.poiName})`.trim();
   }
 
   const result = {

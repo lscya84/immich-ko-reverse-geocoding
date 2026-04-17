@@ -47,6 +47,7 @@ Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + 
 - 같은 장소 클러스터는 API 1회 호출 후 벌크 업데이트
 - 캐시 TTL(180일) 적용
 - 작업 중복 실행 방지
+- 역지오코딩 로직은 `lib/` 아래 공통 모듈로 분리되어, 워커와 CLI가 같은 규칙을 공유
 
 ## 릴리즈
 
@@ -239,6 +240,15 @@ console.log(result.providers.naver);
 const rawResult = await reverseGeocode(37.3595704, 127.105399, { includeRaw: true });
 console.log(rawResult.raw);
 ```
+
+#### 내부 구조
+- `lib/http.js`: 공통 HTTP JSON 요청
+- `lib/geocode-utils.js`: 텍스트 정규화, building name 추출, mapping fallback 유틸
+- `lib/vworld.js`: VWORLD 역지오코딩 전용 모듈
+- `lib/naver.js`: Naver 역지오코딩 전용 모듈
+- `lib/geocode.js`: 최종 조합 로직 (`VWORLD → Naver → mapping`)
+- `reverse_geocode.js`: CLI 엔트리포인트
+- `updater.js`: 워커 본체, 향후 동일 공통 모듈을 사용하도록 확장 가능
 
 ### 수동 강제 실행
 기존 사진까지 다시 처리하려면, 가까운 사진을 같은 장소 클러스터로 묶어서 재처리합니다. 기본 실행도 동일하게 클러스터 단위로 동작합니다.

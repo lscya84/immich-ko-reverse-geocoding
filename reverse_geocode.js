@@ -5,6 +5,14 @@ const config = {
   naverId: (process.env.NAVER_CLIENT_ID || '').trim(),
   naverSecret: (process.env.NAVER_CLIENT_SECRET || '').trim(),
   vworldKey: (process.env.VWORLD_API_KEY || '').trim(),
+  googleApiKey: (process.env.GOOGLE_API_KEY || '').trim(),
+  googleTimeoutMs: parseInt(process.env.GOOGLE_API_TIMEOUT_MS || '10000', 10),
+  googleLanguage: (() => {
+    const mode = (process.env.GEOCODE_FOREIGN_LANGUAGE_MODE || 'korean').trim().toLowerCase();
+    if (mode === 'english') return 'en';
+    if (mode === 'local') return '';
+    return 'ko';
+  })(),
   apiTimeoutMs: parseInt(process.env.NAVER_API_TIMEOUT_MS || process.env.API_TIMEOUT_MS || '10000', 10),
 };
 

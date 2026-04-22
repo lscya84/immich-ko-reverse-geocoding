@@ -22,6 +22,8 @@ const config = {
     clusterRadiusMeters: parseInt(process.env.CLUSTER_RADIUS_METERS || '15', 10),
     clusterYieldInterval: parseInt(process.env.CLUSTER_YIELD_INTERVAL || '1000', 10),
     appendBuildingName: String(process.env.APPEND_BUILDING_NAME || 'true').toLowerCase() === 'true',
+    dbRetryLimit: parseInt(process.env.DB_RETRY_LIMIT || '10', 10),
+    dbRetryDelayMs: parseInt(process.env.DB_RETRY_DELAY_MS || '2000', 10),
 };
 
 const isForceMode = process.argv.includes('--force');
@@ -248,8 +250,30 @@ async function main(forceUpdate = false) {
     const client = new Client(config.db);
     isRunning = true;
 
+    let connected = false;
+    let retryCount = 0;
+
+    while (!connected && retryCount < config.dbRetryLimit) {
+        try {
+            await client.connect();
+            connected = true;
+            if (retryCount > 0) {
+                console.log(`[${nowKst()}] ✅ DB 연결 성공 (재시도 ${retryCount}회차)`);
+            }
+        } catch (err) {
+            retryCount++;
+            if (retryCount >= config.dbRetryLimit) {
+                console.error(`[${nowKst()}] ❌ DB 연결 실패 (최대 재시도 횟수 초과):`, err.message);
+                isRunning = false;
+                return;
+            }
+            const delay = config.dbRetryDelayMs * Math.pow(2, retryCount - 1);
+            console.warn(`[${nowKst()}] ⚠️ DB 연결 실패 (${err.message}). ${delay / 1000}초 후 재시도합니다... (${retryCount}/${config.dbRetryLimit})`);
+            await sleep(delay);
+        }
+    }
+
     try {
-        await client.connect();
         await ensureCacheTable(client);
 
         if (shouldClearCache || clearCacheOnly) {

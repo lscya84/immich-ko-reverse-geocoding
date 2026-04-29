@@ -14,7 +14,7 @@ const config = {
         password: (process.env.DB_PASSWORD || '').trim(),
         host: (process.env.DB_HOSTNAME || 'immich_postgres').trim(),
         database: (process.env.DB_DATABASE_NAME || 'immich').trim(),
-        port: 5432,
+        port: parseInt(process.env.DB_PORT || '5432', 10),
     },
     interval: parseInt(process.env.INTERVAL_HOURS || '24', 10) * 60 * 60 * 1000,
     delay: parseInt(process.env.STEP_DELAY_MS || '100', 10),

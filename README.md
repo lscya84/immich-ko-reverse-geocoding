@@ -83,6 +83,7 @@ Immich에서 실제로 사용하는 `.env` 파일에 아래를 추가합니다.
 VWORLD_API_KEY=복사한_VWORLD_KEY
 NAVER_CLIENT_ID=복사한_ID
 NAVER_CLIENT_SECRET=복사한_SECRET
+DB_PORT=5432
 INTERVAL_HOURS=24
 STEP_DELAY_MS=100
 CLUSTER_RADIUS_METERS=15
@@ -93,6 +94,7 @@ NOT_FOUND_CACHE_TTL_DAYS=30
 
 설명:
 
+- `DB_PORT`: PostgreSQL 포트
 - `INTERVAL_HOURS`: 자동 실행 주기
 - `STEP_DELAY_MS`: API 성공 호출 사이 지연
 - `CLUSTER_RADIUS_METERS`: 같은 장소로 묶을 반경
@@ -113,6 +115,7 @@ immich-naver-reverse-geocoding:
     - ./.env:/app/.env:ro
   environment:
     DB_HOSTNAME: immich_postgres
+    DB_PORT: ${DB_PORT:-5432}
     DB_USERNAME: postgres
     DB_PASSWORD: ${DB_PASSWORD}
     DB_DATABASE_NAME: immich
@@ -282,6 +285,7 @@ immich-naver-reverse-geocoding:
     - ./.env:/app/.env:ro
   environment:
     DB_HOSTNAME: immich_postgres
+    DB_PORT: ${DB_PORT:-5432}
   depends_on:
     - immich_postgres
 ```

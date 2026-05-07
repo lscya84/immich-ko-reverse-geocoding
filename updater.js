@@ -38,6 +38,7 @@ const CACHE_TTL_DAYS = 180;
 const FAST_TRACK_CHUNK_SIZE = 2000;
 const FAST_TRACK_LOG_INTERVAL = 10000;
 const API_TRACK_LOG_INTERVAL = 50;
+const API_FAILURE_LOG_LIMIT = 5;
 
 let isRunning = false;
 
@@ -129,7 +130,7 @@ async function upsertCache(client, cacheKey, address) {
 
 async function getClusterAddress(client, cluster) {
     if (addressCache.has(cluster.clusterKey)) {
-        return { ...addressCache.get(cluster.clusterKey), source: 'memory' };
+        return { address: { ...addressCache.get(cluster.clusterKey), source: 'memory' }, diagnostics: null };
     }
 
     const result = await reverseGeocode(cluster.centroidLat, cluster.centroidLon, {
@@ -164,14 +165,14 @@ async function getClusterAddress(client, cluster) {
             };
         }
     }
-    if (!address) return null;
+    if (!address) return { address: null, diagnostics: result?.diagnostics || null };
 
     setMemoryCache(cluster.clusterKey, address);
     try {
         await upsertCache(client, cluster.clusterKey, address);
     } catch (e) {}
 
-    return address;
+    return { address, diagnostics: result?.diagnostics || null };
 }
 
 async function bulkUpdateAssets(client, items) {
@@ -332,6 +333,9 @@ async function main(forceUpdate = false) {
         let fastTrackUpdated = 0;
         let apiTrackUpdated = 0;
         let apiCallCount = 0;
+        let apiAttemptedClusters = 0;
+        let apiFailedClusters = 0;
+        let apiFailureLogCount = 0;
         let fastPrepared = 0;
         let apiProcessedClusters = 0;
         let apiProcessedPhotos = 0;
@@ -371,7 +375,9 @@ async function main(forceUpdate = false) {
             apiProcessedClusters++;
             apiProcessedPhotos += cluster.assetCount;
 
-            const address = await getClusterAddress(client, cluster);
+            const { address, diagnostics } = await getClusterAddress(client, cluster);
+            const attempted = Boolean(diagnostics?.vworld?.attempted || diagnostics?.naver?.attempted);
+            if (attempted) apiAttemptedClusters++;
             if (address?.source === 'api') apiCallCount++;
 
             if (address) {
@@ -383,12 +389,18 @@ async function main(forceUpdate = false) {
                 const updated = await bulkUpdateAssets(client, updateItems);
                 apiTrackUpdated += updated;
                 totalUpdated += updated;
+            } else {
+                apiFailedClusters++;
+                if (apiFailureLogCount < API_FAILURE_LOG_LIMIT) {
+                    apiFailureLogCount++;
+                    console.warn(`[${nowKst()}] ⚠️ API Track 실패 샘플 ${apiFailureLogCount}/${API_FAILURE_LOG_LIMIT}: clusterKey=${cluster.clusterKey}, vworld=${diagnostics?.vworld?.reason || 'none'}${diagnostics?.vworld?.statusCode ? `(${diagnostics.vworld.statusCode})` : ''}, naver=${diagnostics?.naver?.reason || 'none'}${diagnostics?.naver?.statusCode ? `(${diagnostics.naver.statusCode})` : ''}`);
+                }
             }
 
             if (apiProcessedClusters <= 3 || apiProcessedClusters % API_TRACK_LOG_INTERVAL === 0 || apiProcessedClusters === apiTrackClusters.length) {
                 const clusterRatio = apiTrackClusters.length ? ((apiProcessedClusters / apiTrackClusters.length) * 100).toFixed(1) : '100.0';
                 const photoRatio = totalPhotos ? ((apiProcessedPhotos / totalPhotos) * 100).toFixed(1) : '100.0';
-                console.log(`[${nowKst()}] 🌐 API Track 진행: 클러스터 ${apiProcessedClusters}/${apiTrackClusters.length} (${clusterRatio}%), 사진 ${apiProcessedPhotos}/${totalPhotos} (${photoRatio}%), 실제 API 호출 ${apiCallCount}, DB 반영 ${apiTrackUpdated}`);
+                console.log(`[${nowKst()}] 🌐 API Track 진행: 클러스터 ${apiProcessedClusters}/${apiTrackClusters.length} (${clusterRatio}%), 사진 ${apiProcessedPhotos}/${totalPhotos} (${photoRatio}%), API 시도 ${apiAttemptedClusters}, API 성공 ${apiCallCount}, DB 반영 ${apiTrackUpdated}, 실패 ${apiFailedClusters}`);
             }
 
             if (address?.source === 'api') {
@@ -404,7 +416,9 @@ async function main(forceUpdate = false) {
         console.log(` ├─ API Track 클러스터: ${apiTrackClusters.length}개`);
         console.log(` ├─ Fast Track 반영: ${fastTrackUpdated}건`);
         console.log(` ├─ API Track 반영: ${apiTrackUpdated}건`);
-        console.log(` ├─ 실제 VWorld/Naver API 호출 클러스터: ${apiCallCount}개`);
+        console.log(` ├─ API 시도 클러스터: ${apiAttemptedClusters}개`);
+        console.log(` ├─ 실제 VWorld/Naver 성공 클러스터: ${apiCallCount}개`);
+        console.log(` ├─ API 실패 클러스터: ${apiFailedClusters}개`);
         console.log(` └─ 총 DB 반영: ${totalUpdated}건`);
     } catch (err) {
         console.error('❌ [DB 에러]', err.message);

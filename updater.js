@@ -1,4 +1,4 @@
-require('dotenv').config({ path: '/app/.env' });
+require('dotenv').config({ path: '/app/.env', quiet: true });
 const { Client } = require('pg');
 const fs = require('fs');
 const path = require('path');
@@ -433,46 +433,49 @@ async function main(forceUpdate = false) {
         }
 
         console.log(`[${nowKst()}] ✅ Phase 1 완료: ${fastTrackUpdated}건 반영`);
-        console.log(`[${nowKst()}] 🌐 Phase 2 시작: 미확인 클러스터 API 처리 (${apiTrackClusters.length}개 / ${apiTrackPhotos}장)`);
 
-        for (const cluster of apiTrackClusters) {
-            apiProcessedClusters++;
-            apiProcessedPhotos += cluster.assetCount;
+        if (apiTrackClusters.length > 0) {
+            console.log(`[${nowKst()}] 🌐 Phase 2 시작: 미확인 클러스터 API 처리 (${apiTrackClusters.length}개 / ${apiTrackPhotos}장)`);
 
-            const { address, diagnostics } = await getClusterAddress(client, cluster);
-            const attempted = Boolean(diagnostics?.vworld?.attempted || diagnostics?.naver?.attempted);
-            if (attempted) apiAttemptedClusters++;
-            if (address?.source === 'api') apiCallCount++;
+            for (const cluster of apiTrackClusters) {
+                apiProcessedClusters++;
+                apiProcessedPhotos += cluster.assetCount;
 
-            if (address) {
-                const updateItems = cluster.assetIds.map((assetId) => ({
-                    assetId,
-                    state: address.state,
-                    city: address.city,
-                }));
-                const updated = await bulkUpdateAssets(client, updateItems);
-                apiTrackUpdated += updated;
-                totalUpdated += updated;
-            } else {
-                apiFailedClusters++;
-                if (apiFailureLogCount < API_FAILURE_LOG_LIMIT) {
-                    apiFailureLogCount++;
-                    console.warn(`[${nowKst()}] ⚠️ API Track 실패 샘플 ${apiFailureLogCount}/${API_FAILURE_LOG_LIMIT}: clusterKey=${cluster.clusterKey}, vworld=${diagnostics?.vworld?.reason || 'none'}${diagnostics?.vworld?.statusCode ? `(${diagnostics.vworld.statusCode})` : ''}, naver=${diagnostics?.naver?.reason || 'none'}${diagnostics?.naver?.statusCode ? `(${diagnostics.naver.statusCode})` : ''}`);
+                const { address, diagnostics } = await getClusterAddress(client, cluster);
+                const attempted = Boolean(diagnostics?.vworld?.attempted || diagnostics?.naver?.attempted);
+                if (attempted) apiAttemptedClusters++;
+                if (address?.source === 'api') apiCallCount++;
+
+                if (address) {
+                    const updateItems = cluster.assetIds.map((assetId) => ({
+                        assetId,
+                        state: address.state,
+                        city: address.city,
+                    }));
+                    const updated = await bulkUpdateAssets(client, updateItems);
+                    apiTrackUpdated += updated;
+                    totalUpdated += updated;
+                } else {
+                    apiFailedClusters++;
+                    if (apiFailureLogCount < API_FAILURE_LOG_LIMIT) {
+                        apiFailureLogCount++;
+                        console.warn(`[${nowKst()}] ⚠️ API Track 실패 샘플 ${apiFailureLogCount}/${API_FAILURE_LOG_LIMIT}: clusterKey=${cluster.clusterKey}, vworld=${diagnostics?.vworld?.reason || 'none'}${diagnostics?.vworld?.statusCode ? `(${diagnostics.vworld.statusCode})` : ''}, naver=${diagnostics?.naver?.reason || 'none'}${diagnostics?.naver?.statusCode ? `(${diagnostics.naver.statusCode})` : ''}`);
+                    }
+                }
+
+                if (apiProcessedClusters <= 3 || apiProcessedClusters % API_TRACK_LOG_INTERVAL === 0 || apiProcessedClusters === apiTrackClusters.length) {
+                    const clusterRatio = apiTrackClusters.length ? ((apiProcessedClusters / apiTrackClusters.length) * 100).toFixed(1) : '100.0';
+                    const photoRatio = totalPhotos ? ((apiProcessedPhotos / totalPhotos) * 100).toFixed(1) : '100.0';
+                    console.log(`[${nowKst()}] 🌐 API Track 진행: 클러스터 ${apiProcessedClusters}/${apiTrackClusters.length} (${clusterRatio}%), 사진 ${apiProcessedPhotos}/${totalPhotos} (${photoRatio}%), API 시도 ${apiAttemptedClusters}, API 성공 ${apiCallCount}, DB 반영 ${apiTrackUpdated}, 실패 ${apiFailedClusters}`);
+                }
+
+                if (address?.source === 'api') {
+                    await sleep(config.delay);
                 }
             }
 
-            if (apiProcessedClusters <= 3 || apiProcessedClusters % API_TRACK_LOG_INTERVAL === 0 || apiProcessedClusters === apiTrackClusters.length) {
-                const clusterRatio = apiTrackClusters.length ? ((apiProcessedClusters / apiTrackClusters.length) * 100).toFixed(1) : '100.0';
-                const photoRatio = totalPhotos ? ((apiProcessedPhotos / totalPhotos) * 100).toFixed(1) : '100.0';
-                console.log(`[${nowKst()}] 🌐 API Track 진행: 클러스터 ${apiProcessedClusters}/${apiTrackClusters.length} (${clusterRatio}%), 사진 ${apiProcessedPhotos}/${totalPhotos} (${photoRatio}%), API 시도 ${apiAttemptedClusters}, API 성공 ${apiCallCount}, DB 반영 ${apiTrackUpdated}, 실패 ${apiFailedClusters}`);
-            }
-
-            if (address?.source === 'api') {
-                await sleep(config.delay);
-            }
+            console.log(`[${nowKst()}] ✅ Phase 2 완료: ${apiTrackUpdated}건 반영`);
         }
-
-        console.log(`[${nowKst()}] ✅ Phase 2 완료: ${apiTrackUpdated}건 반영`);
         console.log(`[${nowKst()}] 🎉 작업 완료 상세 리포트`);
         console.log(` ┌─ 캐시 워밍업 적재: ${warmedCount}건`);
         console.log(` ├─ 총 클러스터 수: ${clusters.length}개`);

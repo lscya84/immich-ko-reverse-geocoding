@@ -34,6 +34,7 @@ let locationMap = {};
 const addressCache = new Map();
 const MAX_CACHE_SIZE = 50000;
 const CACHE_TTL_DAYS = 180;
+const NOT_FOUND_CACHE_TTL_DAYS = parseInt(process.env.NOT_FOUND_CACHE_TTL_DAYS || '30', 10);
 
 const FAST_TRACK_CHUNK_SIZE = 2000;
 const FAST_TRACK_LOG_INTERVAL = 10000;
@@ -86,25 +87,38 @@ async function ensureCacheTable(client) {
             "cache_key" VARCHAR PRIMARY KEY,
             "state" VARCHAR,
             "city" VARCHAR,
+            "status" VARCHAR,
+            "failure_reason" VARCHAR,
             "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     `);
+    await client.query(`ALTER TABLE "custom_naver_geocode_cache" ADD COLUMN IF NOT EXISTS "status" VARCHAR`);
+    await client.query(`ALTER TABLE "custom_naver_geocode_cache" ADD COLUMN IF NOT EXISTS "failure_reason" VARCHAR`);
 }
 
 async function warmUpCache(client) {
     addressCache.clear();
 
     const res = await client.query(
-        `SELECT "cache_key", "state", "city"
+        `SELECT "cache_key", "state", "city", "status", "failure_reason"
          FROM "custom_naver_geocode_cache"
-         WHERE "updated_at" >= CURRENT_TIMESTAMP - ($1 * INTERVAL '1 day')`,
-        [CACHE_TTL_DAYS],
+         WHERE (
+             COALESCE("status", 'success') = 'success'
+             AND "updated_at" >= CURRENT_TIMESTAMP - ($1 * INTERVAL '1 day')
+         )
+         OR (
+             COALESCE("status", 'success') = 'not_found'
+             AND "updated_at" >= CURRENT_TIMESTAMP - ($2 * INTERVAL '1 day')
+         )`,
+        [CACHE_TTL_DAYS, NOT_FOUND_CACHE_TTL_DAYS],
     );
 
     for (const row of res.rows) {
         setMemoryCache(row.cache_key, {
             state: row.state,
             city: row.city,
+            status: row.status || 'success',
+            failureReason: row.failure_reason || '',
         }, false);
     }
 
@@ -118,19 +132,40 @@ async function clearAllCache(client) {
 
 async function upsertCache(client, cacheKey, address) {
     await client.query(
-        `INSERT INTO "custom_naver_geocode_cache" ("cache_key", "state", "city", "updated_at")
-         VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+        `INSERT INTO "custom_naver_geocode_cache" ("cache_key", "state", "city", "status", "failure_reason", "updated_at")
+         VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
          ON CONFLICT ("cache_key") DO UPDATE
          SET "state" = EXCLUDED."state",
              "city" = EXCLUDED."city",
+             "status" = EXCLUDED."status",
+             "failure_reason" = EXCLUDED."failure_reason",
              "updated_at" = CURRENT_TIMESTAMP`,
-        [cacheKey, address.state, address.city],
+        [cacheKey, address.state, address.city, address.status || 'success', address.failureReason || ''],
     );
+}
+
+function isNotFoundDiagnostics(diagnostics) {
+    const vworldReason = String(diagnostics?.vworld?.reason || '').toUpperCase();
+    const naverReason = String(diagnostics?.naver?.reason || '');
+    const vworldNotFound = vworldReason === 'NOT_FOUND';
+    const naverNotFound = naverReason.includes('결과가 없습니다');
+    return vworldNotFound && naverNotFound;
 }
 
 async function getClusterAddress(client, cluster) {
     if (addressCache.has(cluster.clusterKey)) {
-        return { address: { ...addressCache.get(cluster.clusterKey), source: 'memory' }, diagnostics: null };
+        const cached = addressCache.get(cluster.clusterKey);
+        if (cached.status === 'not_found') {
+            return {
+                address: null,
+                diagnostics: {
+                    vworld: { attempted: false, reason: cached.failureReason || 'cached-not-found', statusCode: 0 },
+                    naver: { attempted: false, reason: cached.failureReason || 'cached-not-found', statusCode: 0 },
+                },
+                cacheStatus: 'not_found',
+            };
+        }
+        return { address: { ...cached, source: 'memory' }, diagnostics: null, cacheStatus: 'success' };
     }
 
     const result = await reverseGeocode(cluster.centroidLat, cluster.centroidLon, {
@@ -165,14 +200,32 @@ async function getClusterAddress(client, cluster) {
             };
         }
     }
-    if (!address) return { address: null, diagnostics: result?.diagnostics || null };
+    if (!address) {
+        const diagnostics = result?.diagnostics || null;
+        if (isNotFoundDiagnostics(diagnostics)) {
+            const negativeCache = {
+                state: '',
+                city: '',
+                status: 'not_found',
+                failureReason: 'not-found',
+            };
+            setMemoryCache(cluster.clusterKey, negativeCache);
+            try {
+                await upsertCache(client, cluster.clusterKey, negativeCache);
+            } catch (e) {}
+            return { address: null, diagnostics, cacheStatus: 'not_found' };
+        }
+        return { address: null, diagnostics, cacheStatus: 'miss' };
+    }
 
+    address.status = 'success';
+    address.failureReason = '';
     setMemoryCache(cluster.clusterKey, address);
     try {
         await upsertCache(client, cluster.clusterKey, address);
     } catch (e) {}
 
-    return { address, diagnostics: result?.diagnostics || null };
+    return { address, diagnostics: result?.diagnostics || null, cacheStatus: 'success' };
 }
 
 async function bulkUpdateAssets(client, items) {
@@ -313,25 +366,36 @@ async function main(forceUpdate = false) {
         console.log(`[${nowKst()}] 🧩 클러스터링 시작 (반경 ${config.clusterRadiusMeters}m)`);
         const clusters = clusterRows(res.rows, config.clusterRadiusMeters);
         const fastTrackClusters = [];
+        const negativeCacheClusters = [];
         const apiTrackClusters = [];
 
         for (const cluster of clusters) {
-            if (addressCache.has(cluster.clusterKey)) fastTrackClusters.push(cluster);
-            else apiTrackClusters.push(cluster);
+            const cached = addressCache.get(cluster.clusterKey);
+            if (!cached) {
+                apiTrackClusters.push(cluster);
+            } else if (cached.status === 'not_found') {
+                negativeCacheClusters.push(cluster);
+            } else {
+                fastTrackClusters.push(cluster);
+            }
         }
 
         const fastTrackPhotos = fastTrackClusters.reduce((sum, cluster) => sum + cluster.assetCount, 0);
+        const negativeCachePhotos = negativeCacheClusters.reduce((sum, cluster) => sum + cluster.assetCount, 0);
         const apiTrackPhotos = apiTrackClusters.reduce((sum, cluster) => sum + cluster.assetCount, 0);
 
         console.log(`[${nowKst()}] 🧭 대상 분류 완료`);
         console.log(` ├─ 전체 사진: ${res.rows.length}건`);
         console.log(` ├─ 전체 클러스터: ${clusters.length}개`);
         console.log(` ├─ Fast Track: ${fastTrackClusters.length}개 클러스터 / ${fastTrackPhotos}장`);
+        console.log(` ├─ Negative Cache: ${negativeCacheClusters.length}개 클러스터 / ${negativeCachePhotos}장`);
         console.log(` └─ API Track: ${apiTrackClusters.length}개 클러스터 / ${apiTrackPhotos}장`);
 
         let totalUpdated = 0;
         let fastTrackUpdated = 0;
         let apiTrackUpdated = 0;
+        let negativeCacheSkippedClusters = negativeCacheClusters.length;
+        let negativeCacheSkippedPhotos = negativeCachePhotos;
         let apiCallCount = 0;
         let apiAttemptedClusters = 0;
         let apiFailedClusters = 0;
@@ -413,8 +477,10 @@ async function main(forceUpdate = false) {
         console.log(` ┌─ 캐시 워밍업 적재: ${warmedCount}건`);
         console.log(` ├─ 총 클러스터 수: ${clusters.length}개`);
         console.log(` ├─ Fast Track 클러스터: ${fastTrackClusters.length}개`);
+        console.log(` ├─ Negative Cache 클러스터: ${negativeCacheSkippedClusters}개`);
         console.log(` ├─ API Track 클러스터: ${apiTrackClusters.length}개`);
         console.log(` ├─ Fast Track 반영: ${fastTrackUpdated}건`);
+        console.log(` ├─ Negative Cache 스킵 사진: ${negativeCacheSkippedPhotos}건`);
         console.log(` ├─ API Track 반영: ${apiTrackUpdated}건`);
         console.log(` ├─ API 시도 클러스터: ${apiAttemptedClusters}개`);
         console.log(` ├─ 실제 VWorld/Naver 성공 클러스터: ${apiCallCount}개`);

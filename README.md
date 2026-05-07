@@ -1,18 +1,14 @@
 # Immich 한국어 역지오코딩 워커
 
-Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + mapping fallback** 방식으로 한글 주소 보정하는 워커입니다.
+Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + mapping fallback** 방식으로 한글 주소로 보정하는 워커입니다.
 
-이 프로젝트는 다음에 초점을 맞춥니다.
-- 한국 주소를 더 자연스럽게 한글화
-- 기본 역지오코딩은 **VWORLD API 우선**으로 처리
-- VWORLD에서 비는 값만 **Naver 역지오코딩으로 보조**
-- 마지막 fallback으로 `mapping.json`을 사용
-- **건물명 보강은 env 설정으로 on/off 가능**
-- 전체 강제 처리 시 가까운 사진을 **클러스터 단위**로 묶어 빠르게 반영
-- 해외 데이터는 건드리지 않고 보존
-- 기존 설치 사용자가 쉽게 업데이트 가능
+이 프로젝트는 Docker Hub 이미지를 기준으로 배포합니다.
 
-## 위치정보가 표시되는 방식
+- GitHub: https://github.com/lscya84/immich-naver-reverse-geocoding
+- Docker Hub: https://hub.docker.com/r/lscya84/immich-naver-reverse-geocoding
+- Releases: https://github.com/lscya84/immich-naver-reverse-geocoding/releases
+
+## 무엇을 해주나
 
 이 워커는 Immich의 위치 메타데이터 중 주로 아래 값을 보정합니다.
 
@@ -21,6 +17,7 @@ Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + 
 - `city` → 시/군/구/읍/면/동
 
 예를 들면:
+
 - `country`: `대한민국`
 - `state`: `경기도`
 - `city`: `성남시 분당구 정자동`
@@ -28,164 +25,223 @@ Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + 
 네이버 도로명 응답에 **건물명**이 있으면 `city`에 함께 붙여 더 읽기 쉽게 표시할 수 있습니다.
 
 예:
+
 - `city`: `성남시 분당구 정자동 (네이버 1784)`
 
-즉, 이 프로젝트는 좌표를 단순히 영문 지명으로 남겨두지 않고,
-**Immich에서 보기 쉬운 한국어 위치명 형태로 정리해 넣는 것**이 목적입니다.
+즉, 이 프로젝트의 목적은 좌표를 단순히 영문 지명으로 남겨두지 않고 **Immich에서 보기 쉬운 한국어 위치명 형태로 정리해 넣는 것**입니다.
 
 ## 주요 특징
 
-- VWORLD API 기반 기본 역지오코딩
-- 법정동(`level4L`) 기준 주소 반영
-- 우선순위: **VWORLD → Naver → mapping.json**
+- 기본 역지오코딩: **VWORLD API 우선**
+- 보조 보강: **Naver 역지오코딩**
+- 최종 fallback: `mapping.json`
 - `APPEND_BUILDING_NAME=true|false`로 건물명 보강 on/off 가능
-- VWORLD에서 건물명/주소가 충분하면 그대로 사용
-- Naver API는 VWORLD에서 비는 값이 있을 때만 보조적으로 사용
-- `mapping.json`은 최종 보조 매핑 fallback
-- 메모리 + PostgreSQL 캐시 사용
 - 사진들을 가까운 위치끼리 **클러스터 단위 처리**
 - 같은 장소 클러스터는 API 1회 호출 후 벌크 업데이트
-- 캐시 TTL(180일) 적용
-- 작업 중복 실행 방지
-- 역지오코딩 로직은 `lib/` 아래 공통 모듈로 분리되어, 워커와 CLI가 같은 규칙을 공유
+- 메모리 + PostgreSQL 캐시 사용
+- 결과 없음(`NOT_FOUND`) 좌표는 **negative cache**로 저장해 불필요한 재시도 방지
+- 역지오코딩 로직은 `lib/` 아래 공통 모듈로 분리되어 워커와 CLI가 같은 규칙을 공유
 
-## 릴리즈
+## 버전 / 배포 정책
 
-- Latest: [v1.3.0](https://github.com/lscya84/immich-naver-reverse-geocoding/releases/tag/v1.3.0)
-- Previous: [v1.2.0](https://github.com/lscya84/immich-naver-reverse-geocoding/releases/tag/v1.2.0)
-- Initial: [v1.0.0](https://github.com/lscya84/immich-naver-reverse-geocoding/releases/tag/v1.0.0)
-- Releases: [GitHub Releases](https://github.com/lscya84/immich-naver-reverse-geocoding/releases)
+이 프로젝트는 **GitHub 태그 버전과 Docker 이미지 태그를 같은 값으로** 운영합니다.
 
----
+예:
 
-## 설치 방법
+- GitHub tag: `v1.4.1`
+- Docker image: `lscya84/immich-naver-reverse-geocoding:v1.4.1`
 
-### 1) 저장소 클론
-Immich를 운영 중인 **본인 작업 폴더**에서 클론합니다.
+Docker Hub에는 보통 아래 태그가 올라갑니다.
 
-```bash
-git clone https://github.com/lscya84/immich-naver-reverse-geocoding.git
-cd immich-naver-reverse-geocoding
-```
+- `main` : main 브랜치 최신 개발본
+- `sha-<commit>` : 특정 커밋 추적용
+- `vX.Y.Z` : 릴리즈 버전
+- `latest` : 최신 안정 버전
 
-### 2) VWORLD API 키 준비
-기본 역지오코딩은 VWORLD API를 사용합니다. 아래 키를 준비해 주세요.
+운영 환경에서는 **`vX.Y.Z` 고정 사용**을 권장합니다.
 
-- VWORLD: https://www.vworld.kr/
+## 빠른 설치
 
-준비할 값:
-- `VWORLD_API_KEY`
+### 1) API 키 준비
 
-### 3) Naver API 키 준비 (선택, 보조 보강용)
-Naver API는 VWORLD에서 건물명이나 일부 주소값이 비는 경우에만 보조적으로 사용됩니다.
+필수:
 
-준비할 값:
-- `NAVER_CLIENT_ID`
-- `NAVER_CLIENT_SECRET`
+- VWORLD API Key
+  - https://www.vworld.kr/
 
-### 4) `.env` 설정
+선택:
+
+- NAVER_CLIENT_ID
+- NAVER_CLIENT_SECRET
+  - VWORLD에서 건물명이나 일부 주소값이 비는 경우에만 보조적으로 사용
+
+### 2) Immich 작업 폴더의 `.env`에 값 추가
+
 Immich에서 실제로 사용하는 `.env` 파일에 아래를 추가합니다.
 
 ```env
 VWORLD_API_KEY=복사한_VWORLD_KEY
 NAVER_CLIENT_ID=복사한_ID
-NAVER_CLIENT_SECRET=복사한_Secret
+NAVER_CLIENT_SECRET=복사한_SECRET
 INTERVAL_HOURS=24
 STEP_DELAY_MS=100
 CLUSTER_RADIUS_METERS=15
 APPEND_BUILDING_NAME=true
 NAVER_API_TIMEOUT_MS=10000
+NOT_FOUND_CACHE_TTL_DAYS=30
 ```
 
-### 5) `mapping.json` 준비
-이 저장소는 기본적으로 `mapping.csv`를 포함해 배포하는 것을 전제로 합니다.
-따라서 일반적인 사용자는 별도로 `mapping.csv`를 새로 구할 필요 없이, 저장소에 포함된 파일로 `mapping.json`만 생성하면 됩니다.
+설명:
 
-```bash
-node make_mapping.js
-```
+- `INTERVAL_HOURS`: 자동 실행 주기
+- `STEP_DELAY_MS`: API 성공 호출 사이 지연
+- `CLUSTER_RADIUS_METERS`: 같은 장소로 묶을 반경
+- `APPEND_BUILDING_NAME`: 건물명 보강 on/off
+- `NAVER_API_TIMEOUT_MS`: Naver API 타임아웃
+- `NOT_FOUND_CACHE_TTL_DAYS`: 결과 없음 좌표 재시도 보류 기간
 
-특별히 최신 행정구역 기준으로 다시 만들고 싶은 경우에만 `mapping.csv`를 교체해서 재생성하면 됩니다.
+### 3) `docker-compose.yml`에 서비스 추가
 
-> 참고: `mapping.csv`가 UTF-8이 아닌 CP949/EUC-KR 계열 인코딩이면 한글이 깨질 수 있습니다. 이 경우 UTF-8로 변환한 뒤 `mapping.json`을 다시 생성하세요.
-
-### 6) `docker-compose.yml`에 서비스 추가
-Immich의 `docker-compose.yml`에 아래 서비스를 추가합니다.
+Immich 작업 폴더의 `docker-compose.yml`에 아래 서비스를 추가합니다.
 
 ```yaml
 immich-naver-reverse-geocoding:
   container_name: immich_naver_reverse_geocoding
-  build: ./immich-naver-reverse-geocoding
+  image: lscya84/immich-naver-reverse-geocoding:v1.4.1
   restart: always
   volumes:
     - ./.env:/app/.env:ro
   environment:
-    - DB_HOSTNAME=immich_postgres
+    DB_HOSTNAME: immich_postgres
+    DB_USERNAME: postgres
+    DB_PASSWORD: ${DB_PASSWORD}
+    DB_DATABASE_NAME: immich
   depends_on:
     - immich_postgres
 ```
 
-### 7) 빌드 및 실행
-Immich 작업 폴더에서 실행합니다.
+메모:
+
+- 운영에서는 `image: lscya84/immich-naver-reverse-geocoding:v1.4.1` 같이 **버전 고정**을 권장합니다.
+- 자동 최신 추적이 필요하면 `:latest`를 쓸 수 있지만, 예기치 않은 변경까지 바로 반영될 수 있습니다.
+
+### 4) 실행
 
 ```bash
-docker compose up -d --build immich-naver-reverse-geocoding
+docker compose pull immich-naver-reverse-geocoding
+docker compose up -d immich-naver-reverse-geocoding
 ```
+
+최초 설치 후 백그라운드에서 `INTERVAL_HOURS` 주기로 자동 실행됩니다.
 
 ---
 
 ## 업데이트 방법
 
-이미 설치한 사용자는 보통 아래 순서면 충분합니다.
+### 버전 고정 사용 중일 때
 
-### 최신판으로 업데이트
+1. `docker-compose.yml`의 이미지 태그를 원하는 버전으로 변경
+
+```yaml
+image: lscya84/immich-naver-reverse-geocoding:v1.4.2
+```
+
+2. 적용
+
 ```bash
-cd <immich 작업 폴더>/immich-naver-reverse-geocoding
-git pull origin main
-cd <immich 작업 폴더>
-docker compose up -d --build immich-naver-reverse-geocoding
+docker compose pull immich-naver-reverse-geocoding
+docker compose up -d immich-naver-reverse-geocoding
+```
+
+### `latest` 사용 중일 때
+
+```bash
+docker compose pull immich-naver-reverse-geocoding
+docker compose up -d immich-naver-reverse-geocoding
+```
+
+### 롤백
+
+이미지 태그만 이전 버전으로 되돌리면 됩니다.
+
+```yaml
+image: lscya84/immich-naver-reverse-geocoding:v1.4.1
+```
+
+그 다음:
+
+```bash
+docker compose pull immich-naver-reverse-geocoding
+docker compose up -d immich-naver-reverse-geocoding
 ```
 
 ---
 
-## 실행 / 사용
+## 로그 확인
 
-### 백그라운드 스케줄러
-`INTERVAL_HOURS` 주기로 자동 실행됩니다.
-
-### 좌표 1건을 바로 위치정보로 확인
-`reverse_geocode.js`를 추가했습니다. 이 파일은 현재 워커 로직을 재사용해 좌표 1건에 대한 위치정보를 바로 반환합니다.
-
-핵심 동작:
-- 기본 출력은 **요약 정리본**입니다.
-- 값 우선순위는 **VWORLD → Naver → mapping** 입니다.
-- 건물명이 있으면 최대한 함께 붙여 줍니다.
-- VWORLD와 Naver API가 모두 설정되어 있으면 **두 서비스 결과를 나란히 비교**할 수 있습니다.
-- 원본 상세 응답이 필요할 때만 `--raw` 옵션으로 확인할 수 있습니다.
-
-중요:
-- 이 파일을 컨테이너에서 사용하려면 **이미지 재빌드가 필요합니다.**
-- `git pull`만 하고 바로 실행하면 예전 이미지에는 파일이 없어 `Cannot find module '/app/reverse_geocode.js'`가 날 수 있습니다.
-
-#### docker compose 기준 사용 순서
-1. 저장소 업데이트
 ```bash
-cd <immich 작업 폴더>/immich-naver-reverse-geocoding
-git pull origin main
+docker compose logs -f --tail=100 immich-naver-reverse-geocoding
 ```
 
-2. Immich 작업 폴더로 돌아가서 이미지 재빌드
+현재 로그는 아래 흐름을 중심으로 나옵니다.
+
+- 전체 사진 수
+- 전체 클러스터 수
+- `Fast Track`
+- `Negative Cache`
+- `API Track`
+- API 실패 샘플 일부
+- 최종 반영 수
+
+예를 들어:
+
+- `Fast Track`: 캐시 적중 주소 반영
+- `Negative Cache`: 결과 없음 좌표 스킵
+- `API Track`: 실제 API 확인이 필요한 클러스터
+
+---
+
+## 수동 실행
+
+### 기존 사진까지 전체 재처리
+
 ```bash
-cd <immich 작업 폴더>
-docker compose up -d --build immich-naver-reverse-geocoding
+docker compose exec immich-naver-reverse-geocoding node updater.js --force
 ```
 
-3. 좌표 조회 실행
+- 기존 주소값이 있어도 다시 검사하고 반영합니다.
+- DB 캐시는 유지한 채 다시 처리합니다.
+
+### 캐시만 삭제 후 종료
+
+```bash
+docker compose exec immich-naver-reverse-geocoding node updater.js --clear-cache-only
+```
+
+### 캐시 삭제 후 전체 재처리
+
+```bash
+docker compose exec immich-naver-reverse-geocoding node updater.js --force --clear-cache
+```
+
+---
+
+## 좌표 1건 확인
+
+컨테이너 안에서 단건 좌표를 바로 확인할 수 있습니다.
+
 ```bash
 docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.354921 127.558729
 ```
 
+원본 상세 응답까지 보고 싶으면:
+
+```bash
+docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.354921 127.558729 --raw
+```
+
 기본 출력 예시:
+
 ```json
 {
   "ok": true,
@@ -200,87 +256,37 @@ docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.35
     "roadAddress": "불정로 6 네이버 1784",
     "jibunAddress": "경기도 성남시 분당구 정자동 178-4",
     "selectedProvider": "vworld"
-  },
-  "providers": {
-    "vworld": {
-      "state": "경기도",
-      "city": "성남시 분당구 정자동",
-      "legalDong": "정자동",
-      "buildingName": "",
-      "roadAddress": "",
-      "jibunAddress": "경기도 성남시 분당구 정자동 178-4"
-    },
-    "naver": {
-      "state": "경기도",
-      "city": "성남시 분당구 정자동",
-      "legalDong": "정자동",
-      "buildingName": "네이버 1784",
-      "roadAddress": "불정로 6 네이버 1784",
-      "jibunAddress": "경기도 성남시 분당구 정자동 178-4"
-    }
   }
 }
 ```
 
-#### 원본 상세까지 보고 싶을 때
+---
+
+## 개발자용: 소스 기준 빌드
+
+Docker Hub 이미지를 쓰지 않고 직접 빌드하고 싶다면 아래처럼 사용할 수 있습니다.
+
 ```bash
-docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.354921 127.558729 --raw
+git clone https://github.com/lscya84/immich-naver-reverse-geocoding.git
+cd immich-naver-reverse-geocoding
 ```
 
-#### 코드에서 직접 사용할 때
-```js
-const { reverseGeocode } = require('./reverse_geocode');
+`docker-compose.yml`에서는 `image:` 대신 `build:`를 사용하면 됩니다.
 
-const result = await reverseGeocode(37.3595704, 127.105399);
-console.log(result.summary.city);
-console.log(result.summary.buildingName);
-console.log(result.providers.vworld);
-console.log(result.providers.naver);
-
-const rawResult = await reverseGeocode(37.3595704, 127.105399, { includeRaw: true });
-console.log(rawResult.raw);
+```yaml
+immich-naver-reverse-geocoding:
+  container_name: immich_naver_reverse_geocoding
+  build: ./immich-naver-reverse-geocoding
+  restart: always
+  volumes:
+    - ./.env:/app/.env:ro
+  environment:
+    DB_HOSTNAME: immich_postgres
+  depends_on:
+    - immich_postgres
 ```
 
-#### 내부 구조
-- `lib/http.js`: 공통 HTTP JSON 요청
-- `lib/geocode-utils.js`: 텍스트 정규화, building name 추출, mapping fallback 유틸
-- `lib/vworld.js`: VWORLD 역지오코딩 전용 모듈
-- `lib/naver.js`: Naver 역지오코딩 전용 모듈
-- `lib/geocode.js`: 최종 조합 로직 (`VWORLD → Naver → mapping`)
-- `reverse_geocode.js`: CLI 엔트리포인트
-- `updater.js`: 워커 본체, 향후 동일 공통 모듈을 사용하도록 확장 가능
-
-### 수동 강제 실행
-기존 사진까지 다시 처리하려면, 가까운 사진을 같은 장소 클러스터로 묶어서 재처리합니다. 기본 실행도 동일하게 클러스터 단위로 동작합니다.
-
-일반 전체 재처리:
-```bash
-docker compose exec immich-naver-reverse-geocoding node updater.js --force
-```
-- 기존 주소값이 있어도 다시 검사하고 반영합니다.
-- DB 캐시는 유지한 채 다시 처리합니다.
-
-### 캐시 삭제
-완전히 새로고침하고 싶다면 먼저 캐시를 삭제할 수 있습니다.
-
-캐시만 삭제 후 종료:
-```bash
-docker compose exec immich-naver-reverse-geocoding node updater.js --clear-cache-only
-```
-- 메모리 캐시와 DB 캐시(`custom_naver_geocode_cache`)를 비운 뒤 종료합니다.
-- 주소 재반영은 하지 않습니다.
-
-캐시 삭제 후 전체 재처리:
-```bash
-docker compose exec immich-naver-reverse-geocoding node updater.js --force --clear-cache
-```
-- 메모리/DB 캐시를 모두 비운 뒤 전체 사진을 다시 처리합니다.
-- 사실상 **완전 새로고침** 용도로 사용하면 됩니다.
-
-### 로그 확인
-```bash
-docker compose logs -f --tail=100 immich-naver-reverse-geocoding
-```
+이 방식은 개발/수정 용도에 더 적합하고, 일반 사용자는 Docker Hub 이미지 사용을 권장합니다.
 
 ---
 
@@ -288,26 +294,45 @@ docker compose logs -f --tail=100 immich-naver-reverse-geocoding
 
 - `.env`의 API 키 설정은 그대로 사용됩니다.
 - PostgreSQL의 `custom_naver_geocode_cache` 캐시는 기본적으로 유지됩니다.
-- `NAVER_API_TIMEOUT_MS`로 네이버 API 요청 최대 대기시간(기본 10000ms)을 조정할 수 있습니다.
+- `NAVER_API_TIMEOUT_MS`로 네이버 API 요청 최대 대기시간을 조정할 수 있습니다.
 - `--force --clear-cache`를 사용하면 메모리/DB 캐시를 모두 비운 뒤 전체 사진을 다시 처리할 수 있습니다.
-- 코드 변경 후에는 `docker compose up -d --build ...`로 재빌드해야 반영됩니다.
 
 ---
 
 ## 트러블슈팅
 
 ### 주소가 번역되지 않음
+
 - 네이버 API 결과가 없거나
 - `mapping.json`에도 매핑이 없는 경우입니다.
 
 이 프로젝트는 확실하지 않은 정보를 억지로 넣지 않도록 설계되어 있습니다.
 
+### 같은 좌표를 계속 다시 조회하나?
+
+이제 `VWorld=NOT_FOUND` + `Naver=결과 없음` 조합은 **negative cache**로 저장됩니다.
+따라서 같은 실패 좌표는 일정 기간 API 재시도를 하지 않습니다.
+
 ### 해외 좌표가 잘못 보임
+
 Immich에서 해당 사진의 **메타데이터 갱신(Refresh Metadata)** 후 다시 `--force` 실행을 권장합니다.
+
+---
+
+## 내부 구조
+
+- `lib/http.js`: 공통 HTTP JSON 요청
+- `lib/geocode-utils.js`: 텍스트 정규화, building name 추출, mapping fallback 유틸
+- `lib/vworld.js`: VWORLD 역지오코딩 전용 모듈
+- `lib/naver.js`: Naver 역지오코딩 전용 모듈
+- `lib/geocode.js`: 최종 조합 로직 (`VWORLD → Naver → mapping`)
+- `reverse_geocode.js`: CLI 엔트리포인트
+- `updater.js`: 워커 본체
 
 ---
 
 ## 요약
 
-이 프로젝트는 **VWORLD를 기본축으로 한국 주소를 안전하게 한글화**하고,
-필요할 때만 **Naver**와 **mapping fallback**을 이용해 보강하는 Immich용 역지오코딩 워커입니다.
+이 프로젝트는 **VWORLD를 기본축으로 한국 주소를 안전하게 한글화**하고, 필요할 때만 **Naver**와 **mapping fallback**을 이용해 보강하는 Immich용 역지오코딩 워커입니다.
+
+일반 사용자는 **GitHub 소스 빌드보다 Docker Hub 이미지 설치**를 권장합니다.

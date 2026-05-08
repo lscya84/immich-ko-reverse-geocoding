@@ -343,7 +343,7 @@ async function main(forceUpdate = false) {
         console.log(`[${nowKst()}] 🔥 캐시 워밍업 완료: ${warmedCount}건 적재`);
 
         let queryCondition = `WHERE "latitude" BETWEEN 33 AND 43 AND "longitude" BETWEEN 124 AND 132`;
-        queryCondition += ` AND ("country" IN ('South Korea', '대한민국', 'Korea'))`;
+        queryCondition += ` AND (COALESCE("country", '') IN ('', 'South Korea', '대한민국', 'Korea'))`;
 
         if (!forceUpdate) {
             queryCondition += ` AND ("city" IS NULL OR "city" !~ '[가-힣]')`;

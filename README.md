@@ -4,9 +4,9 @@ Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + 
 
 이 프로젝트는 Docker Hub 이미지를 기준으로 배포합니다.
 
-- GitHub: https://github.com/lscya84/immich-naver-reverse-geocoding
-- Docker Hub: https://hub.docker.com/r/lscya84/immich-naver-reverse-geocoding
-- Releases: https://github.com/lscya84/immich-naver-reverse-geocoding/releases
+- GitHub: https://github.com/lscya84/immich-ko-reverse-geocoding
+- Docker Hub: https://hub.docker.com/r/lscya84/immich-ko-reverse-geocoding
+- Releases: https://github.com/lscya84/immich-ko-reverse-geocoding/releases
 
 ## 무엇을 해주나
 
@@ -49,7 +49,7 @@ Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + 
 예:
 
 - GitHub tag: `v1.4.1`
-- Docker image: `lscya84/immich-naver-reverse-geocoding:v1.4.1`
+- Docker image: `lscya84/immich-ko-reverse-geocoding:v1.4.1`
 
 Docker Hub에는 보통 아래 태그가 올라갑니다.
 
@@ -107,9 +107,9 @@ NOT_FOUND_CACHE_TTL_DAYS=30
 Immich 작업 폴더의 `docker-compose.yml`에 아래 서비스를 추가합니다.
 
 ```yaml
-immich-naver-reverse-geocoding:
-  container_name: immich_naver_reverse_geocoding
-  image: lscya84/immich-naver-reverse-geocoding:v1.4.1
+immich-ko-reverse-geocoding:
+  container_name: immich_ko_reverse_geocoding
+  image: lscya84/immich-ko-reverse-geocoding:v1.4.1
   restart: always
   volumes:
     - ./.env:/app/.env:ro
@@ -125,14 +125,14 @@ immich-naver-reverse-geocoding:
 
 메모:
 
-- 운영에서는 `image: lscya84/immich-naver-reverse-geocoding:v1.4.1` 같이 **버전 고정**을 권장합니다.
+- 운영에서는 `image: lscya84/immich-ko-reverse-geocoding:v1.4.1` 같이 **버전 고정**을 권장합니다.
 - 자동 최신 추적이 필요하면 `:latest`를 쓸 수 있지만, 예기치 않은 변경까지 바로 반영될 수 있습니다.
 
 ### 4) 실행
 
 ```bash
-docker compose pull immich-naver-reverse-geocoding
-docker compose up -d immich-naver-reverse-geocoding
+docker compose pull immich-ko-reverse-geocoding
+docker compose up -d immich-ko-reverse-geocoding
 ```
 
 최초 설치 후 백그라운드에서 `INTERVAL_HOURS` 주기로 자동 실행됩니다.
@@ -146,21 +146,21 @@ docker compose up -d immich-naver-reverse-geocoding
 1. `docker-compose.yml`의 이미지 태그를 원하는 버전으로 변경
 
 ```yaml
-image: lscya84/immich-naver-reverse-geocoding:v1.4.2
+image: lscya84/immich-ko-reverse-geocoding:v1.4.2
 ```
 
 2. 적용
 
 ```bash
-docker compose pull immich-naver-reverse-geocoding
-docker compose up -d immich-naver-reverse-geocoding
+docker compose pull immich-ko-reverse-geocoding
+docker compose up -d immich-ko-reverse-geocoding
 ```
 
 ### `latest` 사용 중일 때
 
 ```bash
-docker compose pull immich-naver-reverse-geocoding
-docker compose up -d immich-naver-reverse-geocoding
+docker compose pull immich-ko-reverse-geocoding
+docker compose up -d immich-ko-reverse-geocoding
 ```
 
 ### 롤백
@@ -168,14 +168,14 @@ docker compose up -d immich-naver-reverse-geocoding
 이미지 태그만 이전 버전으로 되돌리면 됩니다.
 
 ```yaml
-image: lscya84/immich-naver-reverse-geocoding:v1.4.1
+image: lscya84/immich-ko-reverse-geocoding:v1.4.1
 ```
 
 그 다음:
 
 ```bash
-docker compose pull immich-naver-reverse-geocoding
-docker compose up -d immich-naver-reverse-geocoding
+docker compose pull immich-ko-reverse-geocoding
+docker compose up -d immich-ko-reverse-geocoding
 ```
 
 ---
@@ -183,7 +183,7 @@ docker compose up -d immich-naver-reverse-geocoding
 ## 로그 확인
 
 ```bash
-docker compose logs -f --tail=100 immich-naver-reverse-geocoding
+docker compose logs -f --tail=100 immich-ko-reverse-geocoding
 ```
 
 현재 로그는 아래 흐름을 중심으로 나옵니다.
@@ -209,7 +209,7 @@ docker compose logs -f --tail=100 immich-naver-reverse-geocoding
 ### 기존 사진까지 전체 재처리
 
 ```bash
-docker compose exec immich-naver-reverse-geocoding node updater.js --force
+docker compose exec immich-ko-reverse-geocoding node updater.js --force
 ```
 
 - 기존 주소값이 있어도 다시 검사하고 반영합니다.
@@ -218,13 +218,13 @@ docker compose exec immich-naver-reverse-geocoding node updater.js --force
 ### 캐시만 삭제 후 종료
 
 ```bash
-docker compose exec immich-naver-reverse-geocoding node updater.js --clear-cache-only
+docker compose exec immich-ko-reverse-geocoding node updater.js --clear-cache-only
 ```
 
 ### 캐시 삭제 후 전체 재처리
 
 ```bash
-docker compose exec immich-naver-reverse-geocoding node updater.js --force --clear-cache
+docker compose exec immich-ko-reverse-geocoding node updater.js --force --clear-cache
 ```
 
 ---
@@ -234,13 +234,13 @@ docker compose exec immich-naver-reverse-geocoding node updater.js --force --cle
 컨테이너 안에서 단건 좌표를 바로 확인할 수 있습니다.
 
 ```bash
-docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.354921 127.558729
+docker compose exec immich-ko-reverse-geocoding node reverse_geocode.js 35.354921 127.558729
 ```
 
 원본 상세 응답까지 보고 싶으면:
 
 ```bash
-docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.354921 127.558729 --raw
+docker compose exec immich-ko-reverse-geocoding node reverse_geocode.js 35.354921 127.558729 --raw
 ```
 
 기본 출력 예시:
@@ -270,16 +270,16 @@ docker compose exec immich-naver-reverse-geocoding node reverse_geocode.js 35.35
 Docker Hub 이미지를 쓰지 않고 직접 빌드하고 싶다면 아래처럼 사용할 수 있습니다.
 
 ```bash
-git clone https://github.com/lscya84/immich-naver-reverse-geocoding.git
-cd immich-naver-reverse-geocoding
+git clone https://github.com/lscya84/immich-ko-reverse-geocoding.git
+cd immich-ko-reverse-geocoding
 ```
 
 `docker-compose.yml`에서는 `image:` 대신 `build:`를 사용하면 됩니다.
 
 ```yaml
-immich-naver-reverse-geocoding:
-  container_name: immich_naver_reverse_geocoding
-  build: ./immich-naver-reverse-geocoding
+immich-ko-reverse-geocoding:
+  container_name: immich_ko_reverse_geocoding
+  build: ./immich-ko-reverse-geocoding
   restart: always
   volumes:
     - ./.env:/app/.env:ro

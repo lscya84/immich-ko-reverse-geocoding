@@ -31,7 +31,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKERHUB_USERNAME }}/immich-naver-reverse-geocoding
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/immich-ko-reverse-geocoding
           tags: |
             type=raw,value=main,enable={{is_default_branch}}
             type=sha,prefix=sha-
@@ -51,6 +51,6 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-          repository: ${{ secrets.DOCKERHUB_USERNAME }}/immich-naver-reverse-geocoding
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/immich-ko-reverse-geocoding
           short-description: ${{ github.event.repository.description }}
           enable-url-completion: true

@@ -8,6 +8,12 @@ Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + 
 - Docker Hub: https://hub.docker.com/r/lscya84/immich-ko-reverse-geocoding
 - Releases: https://github.com/lscya84/immich-ko-reverse-geocoding/releases
 
+## Immich v3 호환 메모
+
+- Immich `v3`에서도 이 워커의 핵심 경로인 `asset_exif.country/state/city`, `latitude`, `longitude` 기반 보정은 유지됩니다.
+- 이 레포는 preview 파일이나 edited asset 파생 파일을 직접 다루지 않으므로, `v3` 대응 포인트는 주로 운영 호환성 확인과 릴리즈 정리에 가깝습니다.
+- 좌표 잠금 정책(`lockedProperties`)은 현재 워커가 좌표 자체를 바꾸지 않으므로 직접 충돌하지 않습니다.
+
 ## 무엇을 해주나
 
 이 워커는 Immich의 위치 메타데이터 중 주로 아래 값을 보정합니다.
@@ -48,8 +54,8 @@ Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + 
 
 예:
 
-- GitHub tag: `v1.4.1`
-- Docker image: `lscya84/immich-ko-reverse-geocoding:v1.4.1`
+- GitHub tag: `v1.4.2`
+- Docker image: `lscya84/immich-ko-reverse-geocoding:v1.4.2`
 
 Docker Hub에는 보통 아래 태그가 올라갑니다.
 
@@ -109,7 +115,7 @@ Immich 작업 폴더의 `docker-compose.yml`에 아래 서비스를 추가합니
 ```yaml
 immich-ko-reverse-geocoding:
   container_name: immich_ko_reverse_geocoding
-  image: lscya84/immich-ko-reverse-geocoding:v1.4.1
+  image: lscya84/immich-ko-reverse-geocoding:v1.4.2
   restart: always
   volumes:
     - ./.env:/app/.env:ro
@@ -125,7 +131,7 @@ immich-ko-reverse-geocoding:
 
 메모:
 
-- 운영에서는 `image: lscya84/immich-ko-reverse-geocoding:v1.4.1` 같이 **버전 고정**을 권장합니다.
+- 운영에서는 `image: lscya84/immich-ko-reverse-geocoding:v1.4.2` 같이 **버전 고정**을 권장합니다.
 - 자동 최신 추적이 필요하면 `:latest`를 쓸 수 있지만, 예기치 않은 변경까지 바로 반영될 수 있습니다.
 
 ### 4) 실행

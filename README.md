@@ -54,8 +54,8 @@ Immich 사진의 대한민국 위치 정보를 **VWORLD 우선 + Naver 보조 + 
 
 예:
 
-- GitHub tag: `v1.4.2`
-- Docker image: `lscya84/immich-ko-reverse-geocoding:v1.4.2`
+- GitHub tag: `v1.4.3`
+- Docker image: `lscya84/immich-ko-reverse-geocoding:v1.4.3`
 
 Docker Hub에는 보통 아래 태그가 올라갑니다.
 
@@ -115,7 +115,7 @@ Immich 작업 폴더의 `docker-compose.yml`에 아래 서비스를 추가합니
 ```yaml
 immich-ko-reverse-geocoding:
   container_name: immich_ko_reverse_geocoding
-  image: lscya84/immich-ko-reverse-geocoding:v1.4.2
+  image: lscya84/immich-ko-reverse-geocoding:v1.4.3
   restart: always
   volumes:
     - ./.env:/app/.env:ro
@@ -131,7 +131,7 @@ immich-ko-reverse-geocoding:
 
 메모:
 
-- 운영에서는 `image: lscya84/immich-ko-reverse-geocoding:v1.4.2` 같이 **버전 고정**을 권장합니다.
+- 운영에서는 `image: lscya84/immich-ko-reverse-geocoding:v1.4.3` 같이 **버전 고정**을 권장합니다.
 - 자동 최신 추적이 필요하면 `:latest`를 쓸 수 있지만, 예기치 않은 변경까지 바로 반영될 수 있습니다.
 
 ### 4) 실행
@@ -152,7 +152,7 @@ docker compose up -d immich-ko-reverse-geocoding
 1. `docker-compose.yml`의 이미지 태그를 원하는 버전으로 변경
 
 ```yaml
-image: lscya84/immich-ko-reverse-geocoding:v1.4.2
+image: lscya84/immich-ko-reverse-geocoding:v1.4.3
 ```
 
 2. 적용
